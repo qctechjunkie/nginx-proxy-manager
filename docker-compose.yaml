@@ -1,0 +1,39 @@
+services:
+  app:
+    image: 'jc21/nginx-proxy-manager:latest'
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '443:443'
+      - '81:81'
+      - '6690:6690'
+      - '5000:5000'
+      - '5001:5001'
+    environment:
+      DB_MYSQL_HOST: "db"
+      DB_MYSQL_PORT: 3306
+      DB_MYSQL_USER: "npm"
+      DB_MYSQL_PASSWORD: "npm"
+      DB_MYSQL_NAME: "npm"
+    volumes:
+      - /home/jazzp/Docker/nginx-proxy-manager/data:/data
+      - /home/jazzp/Docker/nginx-proxy-manager/letsencrypt:/etc/letsencrypt
+    depends_on:
+      - db
+    networks:
+      - scoobydoo
+  db:
+    image: 'jc21/mariadb-aria:latest'
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: 'npm'
+      MYSQL_DATABASE: 'npm'
+      MYSQL_USER: 'npm'
+      MYSQL_PASSWORD: 'npm'
+    volumes:
+      - /home/jazzp/Docker/nginx-proxy-manager/mysql:/var/lib/mysql
+    networks:
+      - scoobydoo
+networks:
+  scoobydoo:
+    external: true
