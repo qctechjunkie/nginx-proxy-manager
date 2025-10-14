@@ -1,0 +1,12 @@
+# Ignore everything
+*
+
+# But don't ignore the docker-compose.yaml file
+!compose.yaml
+!compose.yml
+
+# Don't ignore .gitignore itself
+!.gitignore
+
+# Don't ignore README if you want to add one
+!README.md
