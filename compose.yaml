@@ -16,8 +16,8 @@ services:
       DB_MYSQL_PASSWORD: ${MYSQL_PASSWORD}
       DB_MYSQL_NAME: ${MYSQL_DATABASE:-npm}
     volumes:
-      - ./data:/data
-      - ./letsencrypt:/etc/letsencrypt
+      - /home/jazzp/Docker/nginx-proxy-manager/data:/data
+      - /home/jazzp/Docker/nginx-proxy-manager/letsencrypt:/etc/letsencrypt
     depends_on:
       - db
     networks:
@@ -31,7 +31,7 @@ services:
       MYSQL_USER: ${MYSQL_USER:-npm}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}
     volumes:
-      - ./mysql:/var/lib/mysql
+      - /home/jazzp/Docker/nginx-proxy-manager/mysql:/var/lib/mysql
     networks:
       - scoobydoo
 networks:
