@@ -35,5 +35,5 @@ services:
     networks:
       - scoobydoo
 networks:
-  -scoobydoo:
+  scoobydoo:
     external: true
