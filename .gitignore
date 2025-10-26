@@ -1,12 +1,42 @@
-# Ignore everything
-*
+# Environment variables (contains sensitive data)
+.env
 
-# But don't ignore the docker-compose.yaml file
+# Docker volumes and generated data
+data/
+letsencrypt/
+mysql/
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE and editor files
+.vscode/
+.idea/
+*.sublime-*
+
+# Backup files
+*.bak
+*.backup
+
+# Allow important configuration files
 !compose.yaml
 !compose.yml
-
-# Don't ignore .gitignore itself
+!docker-compose.yaml
+!docker-compose.yml
+!.env.example
 !.gitignore
-
-# Don't ignore README if you want to add one
 !README.md
+!*.md
