@@ -6,9 +6,6 @@ services:
       - "80:80"
       - "443:443"
       - "81:81"
-      - "6690:6690"
-      - "5000:5000"
-      - "5001:5001"
     environment:
       DB_MYSQL_HOST: ${DB_MYSQL_HOST}
       DB_MYSQL_PORT: ${DB_MYSQL_PORT}
