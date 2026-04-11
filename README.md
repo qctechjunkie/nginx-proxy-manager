@@ -165,7 +165,7 @@ docker compose exec db mariadb -u root -p
 # Enter your current MYSQL_ROOT_PASSWORD when prompted
 ```
 
-Run the following SQL (replace `newuser` and `newpassword` with your new values):
+Run the following SQL (replace `newuser`, `newpassword`, and `newrootpassword` with your new values):
 
 ```sql
 -- Rename the application user (skip if keeping the same username)
@@ -174,13 +174,14 @@ RENAME USER 'npm'@'%' TO 'newuser'@'%';
 -- Set a new password for the application user
 ALTER USER 'newuser'@'%' IDENTIFIED BY 'newpassword';
 
--- Optionally rotate the root password too
+-- Rotate the root password — root can exist under multiple host entries, update both
 ALTER USER 'root'@'%' IDENTIFIED BY 'newrootpassword';
+ALTER USER 'root'@'localhost' IDENTIFIED BY 'newrootpassword';
 
 -- Apply all changes
 FLUSH PRIVILEGES;
 
--- Verify the user was updated
+-- Verify users and hosts
 SELECT User, Host FROM mysql.user;
 
 EXIT;
