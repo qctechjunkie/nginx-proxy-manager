@@ -152,6 +152,56 @@ tar -xzf backups/npm-backup-YYYYMMDD-HHMMSS.tar.gz
 docker compose up -d
 ```
 
+### Rotating Database Credentials on a Live Deployment
+
+If you need to change `MYSQL_USER`, `MYSQL_PASSWORD`, or `MYSQL_ROOT_PASSWORD` after the stack is already running, you **cannot** just update `.env` and restart. MariaDB only reads those variables on first initialization — the credentials are stored inside the database volume itself. Changing `.env` alone will cause a connection failure.
+
+Follow these steps to rotate credentials without losing data:
+
+**Step 1 — Update credentials inside MariaDB while it is still running**
+
+```bash
+docker compose exec db mariadb -u root -p
+# Enter your current MYSQL_ROOT_PASSWORD when prompted
+```
+
+Run the following SQL (replace `newuser` and `newpassword` with your new values):
+
+```sql
+-- Rename the application user (skip if keeping the same username)
+RENAME USER 'npm'@'%' TO 'newuser'@'%';
+
+-- Set a new password for the application user
+ALTER USER 'newuser'@'%' IDENTIFIED BY 'newpassword';
+
+-- Optionally rotate the root password too
+ALTER USER 'root'@'%' IDENTIFIED BY 'newrootpassword';
+
+-- Apply all changes
+FLUSH PRIVILEGES;
+
+-- Verify the user was updated
+SELECT User, Host FROM mysql.user;
+
+EXIT;
+```
+
+> **Note:** The database name (`MYSQL_DATABASE`, default `npm`) cannot be renamed without a full dump-and-restore. It is not security-sensitive and does not need to be changed.
+
+**Step 2 — Update `.env`** with the new values to match what you set in SQL.
+
+**Step 3 — Recreate the containers** to pick up the new environment variables:
+
+```bash
+docker compose up -d --force-recreate
+```
+
+**Step 4 — Verify** the app reconnected successfully:
+
+```bash
+docker compose logs app --tail 50
+```
+
 ## Security Considerations
 
 1. **Change default passwords** - Update `MYSQL_ROOT_PASSWORD` and `MYSQL_PASSWORD` in `.env`
@@ -160,6 +210,23 @@ docker compose up -d
 4. **Regular updates** - Keep Docker images updated with `docker compose pull`
 5. **Firewall rules** - Consider restricting access to port 81 (admin interface) to trusted IPs
 6. **SSL certificates** - Use Let's Encrypt through the NPM interface for SSL certificates
+
+### Generating Secure Passwords
+
+Use one of these commands to generate a strong, random password before deploying:
+
+```bash
+# Base64-encoded (alphanumeric + symbols, good for most cases)
+openssl rand -base64 32
+
+# Hex-encoded (alphanumeric only, safe in all contexts)
+openssl rand -hex 32
+
+# Alphanumeric only without openssl (Linux/macOS)
+< /dev/urandom tr -dc A-Za-z0-9 | head -c 32; echo
+```
+
+Generate a separate password for each variable — do not reuse the same value for `MYSQL_ROOT_PASSWORD` and `MYSQL_PASSWORD`.
 
 ## Troubleshooting
 
