@@ -4,7 +4,6 @@
 # Docker volumes and generated data
 data/
 letsencrypt/
-mysql/
 
 # Logs
 *.log

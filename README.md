@@ -1,13 +1,13 @@
 # Nginx Proxy Manager
 
-A Docker Compose setup for [Nginx Proxy Manager](https://nginxproxymanager.com/) with MariaDB backend.
+A Docker Compose setup for [Nginx Proxy Manager](https://nginxproxymanager.com/) with a PostgreSQL backend.
 
 ## Overview
 
 Nginx Proxy Manager is a simple, powerful, and secure way to manage your proxy hosts with a nice web interface. This setup includes:
 
 - Nginx Proxy Manager (latest)
-- MariaDB with Aria storage engine
+- PostgreSQL database, provided by the shared `global-postgres` service
 - Secure environment variable configuration
 - Persistent data storage for configurations and SSL certificates
 
@@ -15,17 +15,13 @@ Nginx Proxy Manager is a simple, powerful, and secure way to manage your proxy h
 
 - Docker Engine 20.10+
 - Docker Compose V2+
-- External Docker network named `scoobydoo` (or modify the network name in `.env`)
+- The shared `global-postgres` stack already running, with its Docker network (`global-postgres-network` by default) present on the host and a `npm` database/user already provisioned in it
+
+This stack does not run its own database container. It connects to the shared `global-postgres` Postgres instance over the external `global-postgres-network` Docker network, using the `npm` database that is pre-provisioned there.
 
 ## Quick Start
 
-### 1. Create the external network (if it doesn't exist)
-
-```bash
-docker network create scoobydoo
-```
-
-### 2. Set up environment variables
+### 1. Set up environment variables
 
 Copy the example environment file and configure it:
 
@@ -33,25 +29,24 @@ Copy the example environment file and configure it:
 cp .env.example .env
 ```
 
-Edit `.env` and update the following variables:
+Edit `.env` and set the following to match the `npm` database credentials provisioned in `global-postgres`:
 
 ```bash
-# IMPORTANT: Change these default passwords!
-MYSQL_ROOT_PASSWORD=your_secure_root_password_here
-MYSQL_PASSWORD=your_secure_password_here
+# IMPORTANT: Use the actual password provisioned for the npm database in global-postgres
+DB_POSTGRES_PASSWORD=your_secure_password_here
 ```
 
-### 3. Start the services
+### 2. Start the services
 
 ```bash
 docker compose up -d
 ```
 
-### 4. Access the Admin UI
+### 3. Access the Admin UI
 
 Navigate to `http://your-server-ip:81` (or the port specified in `ADMIN_PORT`)
 
-**Default Admin User:**
+**Default Admin User (first-time setup only):**
 - Email: `admin@example.com`
 - Password: `changeme`
 
@@ -65,18 +60,17 @@ All configuration is managed through the `.env` file:
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `MYSQL_ROOT_PASSWORD` | MariaDB root password | *Required* |
-| `MYSQL_PASSWORD` | Database user password | *Required* |
-| `MYSQL_DATABASE` | Database name | `npm` |
-| `MYSQL_USER` | Database username | `npm` |
-| `DB_MYSQL_PORT` | Database port | `3306` |
+| `DB_POSTGRES_HOST` | Postgres host/container name | `global-postgres` |
+| `DB_POSTGRES_PORT` | Postgres port | `5432` |
+| `DB_POSTGRES_USER` | Database username | `npm` |
+| `DB_POSTGRES_PASSWORD` | Database user password | *Required* |
+| `DB_POSTGRES_NAME` | Database name | `npm` |
 | `HTTP_PORT` | HTTP port mapping | `80` |
 | `HTTPS_PORT` | HTTPS port mapping | `443` |
 | `ADMIN_PORT` | Admin UI port | `81` |
 | `CUSTOM_PORT_1` | Custom port 1 | `6690` |
 | `CUSTOM_PORT_2` | Custom port 2 | `5000` |
 | `CUSTOM_PORT_3` | Custom port 3 | `5001` |
-| `NETWORK_NAME` | Docker network name | `scoobydoo` |
 
 ### Port Mappings
 
@@ -93,9 +87,10 @@ You can modify these in your `.env` file.
 Data is stored in the following local directories:
 - `./data` - Nginx Proxy Manager configuration
 - `./letsencrypt` - SSL certificates
-- `./mysql` - Database files
 
 These directories are created automatically and are excluded from version control.
+
+Database data lives in the shared `global-postgres` stack's own volume, not in this repo — see that stack's documentation for its backup/restore procedures.
 
 ## Management
 
@@ -129,12 +124,14 @@ docker compose down
 # Create backup directory
 mkdir -p backups
 
-# Backup all data
-tar -czf backups/npm-backup-$(date +%Y%m%d-%H%M%S).tar.gz data/ letsencrypt/ mysql/
+# Backup app data (SSL certs and NPM config)
+tar -czf backups/npm-backup-$(date +%Y%m%d-%H%M%S).tar.gz data/ letsencrypt/
 
 # Start services again
 docker compose up -d
 ```
+
+Database data is not included in this backup — it is backed up as part of the shared `global-postgres` stack (for example via `pg_dump`). See that stack's README for details.
 
 ### Restore from backup
 
@@ -143,7 +140,7 @@ docker compose up -d
 docker compose down
 
 # Remove existing data
-rm -rf data/ letsencrypt/ mysql/
+rm -rf data/ letsencrypt/
 
 # Extract backup
 tar -xzf backups/npm-backup-YYYYMMDD-HHMMSS.tar.gz
@@ -152,46 +149,25 @@ tar -xzf backups/npm-backup-YYYYMMDD-HHMMSS.tar.gz
 docker compose up -d
 ```
 
+To restore the database itself, restore the `npm` database inside `global-postgres` from its own backup (e.g. `pg_restore`/`psql`), independent of this repo.
+
 ### Rotating Database Credentials on a Live Deployment
 
-If you need to change `MYSQL_USER`, `MYSQL_PASSWORD`, or `MYSQL_ROOT_PASSWORD` after the stack is already running, you **cannot** just update `.env` and restart. MariaDB only reads those variables on first initialization — the credentials are stored inside the database volume itself. Changing `.env` alone will cause a connection failure.
+Because the database lives in the shared `global-postgres` stack, credential rotation is done there, not in this repo:
 
-Follow these steps to rotate credentials without losing data:
-
-**Step 1 — Update credentials inside MariaDB while it is still running**
+**Step 1 — Update the password inside Postgres**
 
 ```bash
-docker compose exec db mariadb -u root -p
-# Enter your current MYSQL_ROOT_PASSWORD when prompted
+docker exec -it global-postgres psql -U postgres
 ```
-
-Run the following SQL (replace `newuser`, `newpassword`, and `newrootpassword` with your new values):
 
 ```sql
--- Rename the application user (skip if keeping the same username)
-RENAME USER 'npm'@'%' TO 'newuser'@'%';
-
--- Set a new password for the application user
-ALTER USER 'newuser'@'%' IDENTIFIED BY 'newpassword';
-
--- Rotate the root password — root can exist under multiple host entries, update both
-ALTER USER 'root'@'%' IDENTIFIED BY 'newrootpassword';
-ALTER USER 'root'@'localhost' IDENTIFIED BY 'newrootpassword';
-
--- Apply all changes
-FLUSH PRIVILEGES;
-
--- Verify users and hosts
-SELECT User, Host FROM mysql.user;
-
-EXIT;
+ALTER USER npm WITH PASSWORD 'newpassword';
 ```
 
-> **Note:** The database name (`MYSQL_DATABASE`, default `npm`) cannot be renamed without a full dump-and-restore. It is not security-sensitive and does not need to be changed.
+**Step 2 — Update `.env`** in this repo with the new `DB_POSTGRES_PASSWORD` value.
 
-**Step 2 — Update `.env`** with the new values to match what you set in SQL.
-
-**Step 3 — Recreate the containers** to pick up the new environment variables:
+**Step 3 — Recreate the container** to pick up the new environment variable:
 
 ```bash
 docker compose up -d --force-recreate
@@ -205,7 +181,7 @@ docker compose logs app --tail 50
 
 ## Security Considerations
 
-1. **Change default passwords** - Update `MYSQL_ROOT_PASSWORD` and `MYSQL_PASSWORD` in `.env`
+1. **Change default passwords** - Use a strong, unique `DB_POSTGRES_PASSWORD` in `.env`, matching what is provisioned in `global-postgres`
 2. **Change admin credentials** - Change the default Nginx Proxy Manager admin login immediately
 3. **Keep .env secure** - Never commit `.env` to version control (already in `.gitignore`)
 4. **Regular updates** - Keep Docker images updated with `docker compose pull`
@@ -227,21 +203,16 @@ openssl rand -hex 32
 < /dev/urandom tr -dc A-Za-z0-9 | head -c 32; echo
 ```
 
-Generate a separate password for each variable — do not reuse the same value for `MYSQL_ROOT_PASSWORD` and `MYSQL_PASSWORD`.
-
 ## Troubleshooting
 
 ### Services won't start
 
 Check if the external network exists:
 ```bash
-docker network ls | grep scoobydoo
+docker network ls | grep global-postgres-network
 ```
 
-If not, create it:
-```bash
-docker network create scoobydoo
-```
+If not, make sure the `global-postgres` stack is deployed and running first — this stack depends on its network and database.
 
 ### Can't access admin interface
 
@@ -251,15 +222,16 @@ docker network create scoobydoo
 
 ### Database connection errors
 
-1. Check database logs: `docker compose logs db`
-2. Verify credentials in `.env` match between services
-3. Ensure `DB_MYSQL_HOST` is set to `db` in compose.yaml
+1. Confirm `global-postgres` is healthy: `docker ps` and `docker logs global-postgres`
+2. Verify `DB_POSTGRES_PASSWORD` in `.env` matches the `npm` user's password in `global-postgres`
+3. Ensure `DB_POSTGRES_HOST` resolves on the `global-postgres-network` (defaults to `global-postgres`)
+4. Check the app logs for `Using Postgres configuration` on startup — if you instead see `Using MySQL configuration` or `Using configuration from file`, the environment variables are not being picked up correctly
 
 ## Additional Resources
 
 - [Nginx Proxy Manager Documentation](https://nginxproxymanager.com/guide/)
 - [Docker Compose Documentation](https://docs.docker.com/compose/)
-- [MariaDB Documentation](https://mariadb.org/documentation/)
+- [PostgreSQL Documentation](https://www.postgresql.org/docs/)
 
 ## License
 

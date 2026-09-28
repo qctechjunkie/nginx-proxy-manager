@@ -7,23 +7,18 @@ services:
       - "443:443"
       - "81:81"
     environment:
-      DB_MYSQL_HOST: ${DB_MYSQL_HOST}
-      DB_MYSQL_PORT: ${DB_MYSQL_PORT}
-      DB_MYSQL_USER: ${MYSQL_USER}
-      DB_MYSQL_PASSWORD: ${MYSQL_PASSWORD}
-      DB_MYSQL_NAME: ${MYSQL_DATABASE}
+      DB_POSTGRES_HOST: ${DB_POSTGRES_HOST}
+      DB_POSTGRES_PORT: ${DB_POSTGRES_PORT}
+      DB_POSTGRES_USER: ${DB_POSTGRES_USER}
+      DB_POSTGRES_PASSWORD: ${DB_POSTGRES_PASSWORD}
+      DB_POSTGRES_NAME: ${DB_POSTGRES_NAME}
     volumes:
       - ${DOCKER_DATA_PATH}/data:/data
       - ${DOCKER_DATA_PATH}/letsencrypt:/etc/letsencrypt
-    depends_on:
-      - db
-  db:
-    image: "jc21/mariadb-aria:latest"
-    restart: unless-stopped
-    environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-      MYSQL_DATABASE: ${MYSQL_DATABASE}
-      MYSQL_USER: ${MYSQL_USER}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
-    volumes:
-      - ${DOCKER_DATA_PATH}/mysql:/var/lib/mysql
+    networks:
+      - postgres
+
+networks:
+  postgres:
+    name: global-postgres-network
+    external: true
