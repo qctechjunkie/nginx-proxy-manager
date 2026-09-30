@@ -17,8 +17,11 @@ services:
       - ${DOCKER_DATA_PATH}/letsencrypt:/etc/letsencrypt
     networks:
       - postgres
+      - scoobydoo
 
 networks:
   postgres:
     name: global-postgres-network
+    external: true
+  scoobydoo:
     external: true
